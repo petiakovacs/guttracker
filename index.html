@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#2E7D32">
+<link rel="manifest" href="manifest.json">
+<title>GutTracker</title>
+<style>
+/* ========== RESET & BASE ========== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --green-900: #1B5E20; --green-700: #2E7D32; --green-600: #388E3C;
+  --green-500: #43A047; --green-400: #66BB6A; --green-200: #A5D6A7;
+  --green-100: #C8E6C9; --green-50: #E8F5E9;
+  --bg: #F5F9F5; --card: #FFFFFF; --text: #1D1D1F; --text2: #666666;
+  --text3: #999999; --border: #E8EBE8; --shadow: rgba(0,0,0,0.06);
+  --orange: #FF9800; --red: #E53935; --blue: #1E88E5; --pink: #E91E63;
+  --purple: #7B1FA2;
+  --radius: 16px; --radius-sm: 12px; --radius-xs: 8px;
+  --nav-h: 72px; --header-h: 56px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+}
+
+/* ========== APP SHELL ========== */
+#app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.header {
+  height: var(--header-h); display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--border);
+  flex-shrink: 0; z-index: 10;
+}
+.header h1 { font-size: 20px; font-weight: 700; color: var(--green-700); }
+.header-right { display: flex; gap: 12px; align-items: center; }
+.header-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px; color: var(--text2); }
+
+.main { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+.main-content { padding: 16px 16px calc(var(--nav-h) + 16px); min-height: 100%; }
+
+/* ========== BOTTOM NAV ========== */
+.nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: var(--nav-h); background: var(--card);
+  border-top: 1px solid var(--border);
+  display: flex; justify-content: space-around; align-items: flex-start;
+  padding-top: 8px; padding-bottom: var(--safe-bottom);
+  z-index: 100;
+}
+.nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: none; border: none; cursor: pointer;
+  font-size: 10px; color: var(--text3); font-weight: 500;
+  padding: 4px 12px; transition: color 0.2s;
+}
+.nav-item.active { color: var(--green-700); }
+.nav-item .nav-icon { font-size: 24px; line-height: 1; }
+
+/* ========== FAB (floating add button) ========== */
+.fab {
+  position: fixed; bottom: calc(var(--nav-h) + 16px); right: 20px;
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--green-700); color: white; border: none;
+  font-size: 28px; cursor: pointer; z-index: 50;
+  box-shadow: 0 4px 16px rgba(46,125,50,0.35);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.fab:active { transform: scale(0.92); }
+
+/* ========== DATE STRIP ========== */
+.date-strip { display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.date-strip::-webkit-scrollbar { display: none; }
+.day-chip {
+  flex-shrink: 0; text-align: center; padding: 8px 12px; border-radius: var(--radius-sm);
+  background: var(--card); border: 1px solid var(--border); cursor: pointer;
+  min-width: 48px; transition: all 0.2s;
+}
+.day-chip.active { background: var(--green-700); border-color: var(--green-700); color: white; }
+.day-chip .day-name { font-size: 10px; font-weight: 600; text-transform: uppercase; opacity: 0.7; }
+.day-chip .day-num { font-size: 18px; font-weight: 700; line-height: 1.2; }
+
+/* ========== GAS COUNTER (top banner) ========== */
+.gas-banner {
+  background: linear-gradient(135deg, var(--green-50), #FFF8E1);
+  border-radius: var(--radius); padding: 14px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; border: 1px solid var(--green-100);
+}
+.gas-banner-left { display: flex; align-items: center; gap: 12px; }
+.gas-banner-count { font-size: 28px; font-weight: 800; color: var(--green-700); }
+.gas-banner-label { font-size: 12px; color: var(--text2); }
+.gas-banner-label strong { color: var(--text); font-weight: 600; }
+.gas-btn {
+  background: var(--green-700); color: white; border: none; border-radius: 50%;
+  width: 48px; height: 48px; font-size: 22px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(46,125,50,0.3); transition: transform 0.15s;
+}
+.gas-btn:active { transform: scale(0.9); }
+
+/* ========== SMELL POPUP ========== */
+.smell-popup {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--card); border-radius: 20px 20px 0 0;
+  padding: 20px 20px calc(20px + var(--safe-bottom));
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
+  z-index: 200; transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+.smell-popup.show { transform: translateY(0); }
+.smell-popup h3 { font-size: 16px; font-weight: 700; text-align: center; margin-bottom: 16px; }
+.smell-options { display: flex; gap: 12px; justify-content: center; }
+.smell-opt {
+  flex: 1; padding: 16px 8px; border-radius: var(--radius);
+  border: 2px solid var(--border); background: var(--card);
+  cursor: pointer; text-align: center; transition: all 0.2s;
+  max-width: 120px;
+}
+.smell-opt:active, .smell-opt.selected { border-color: var(--green-700); background: var(--green-50); }
+.smell-opt .smell-emoji { font-size: 32px; display: block; margin-bottom: 4px; }
+.smell-opt .smell-label { font-size: 12px; font-weight: 600; color: var(--text2); }
+.smell-skip {
+  display: block; margin: 16px auto 0; background: none; border: none;
+  color: var(--text3); font-size: 14px; cursor: pointer; padding: 8px 16px;
+}
+
+/* ========== SECTION TITLE ========== */
+.section-title { font-size: 13px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin: 20px 0 10px; }
+
+/* ========== TIMELINE ENTRY ========== */
+.entry {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; background: var(--card);
+  border-radius: var(--radius); margin-bottom: 8px;
+  box-shadow: 0 1px 4px var(--shadow); border: 1px solid var(--border);
+  transition: transform 0.15s;
+}
+.entry:active { transform: scale(0.98); }
+.entry-icon {
+  width: 40px; height: 40px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.entry-icon.meal { background: #FFF3E0; }
+.entry-icon.drink { background: #E0F7FA; }
+.entry-icon.symptom { background: #FCE4EC; }
+.entry-icon.stool { background: #E8EAF6; }
+.entry-icon.wellbeing { background: #F3E5F5; }
+.entry-icon.gas { background: #FFF8E1; }
+.entry-body { flex: 1; min-width: 0; }
+.entry-name { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry-detail { font-size: 12px; color: var(--text3); }
+.entry-time { font-size: 11px; color: var(--text3); flex-shrink: 0; }
+.entry-photo { width: 40px; height: 40px; border-radius: var(--radius-xs); object-fit: cover; flex-shrink: 0; }
+
+/* ========== ADD SCREEN ========== */
+.add-screen {
+  position: fixed; inset: 0; background: var(--bg); z-index: 150;
+  transform: translateY(100%); transition: transform 0.3s ease;
+  display: flex; flex-direction: column;
+}
+.add-screen.show { transform: translateY(0); }
+.add-header {
+  height: var(--header-h); display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.add-header h2 { font-size: 18px; font-weight: 700; }
+.add-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text2); padding: 4px; }
+.add-body { flex: 1; overflow-y: auto; padding: 16px; }
+
+/* Category selector */
+.cat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+.cat-btn {
+  padding: 16px 8px; border-radius: var(--radius); border: 2px solid var(--border);
+  background: var(--card); cursor: pointer; text-align: center; transition: all 0.2s;
+}
+.cat-btn.active { border-color: var(--green-700); background: var(--green-50); }
+.cat-btn .cat-emoji { font-size: 28px; display: block; margin-bottom: 4px; }
+.cat-btn .cat-label { font-size: 11px; font-weight: 600; color: var(--text2); }
+
+/* Form elements */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+.form-input, .form-textarea {
+  width: 100%; padding: 12px 14px; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border); font-size: 15px; color: var(--text);
+  background: var(--card); font-family: inherit; transition: border-color 0.2s;
+}
+.form-input:focus, .form-textarea:focus { outline: none; border-color: var(--green-500); }
+.form-textarea { resize: vertical; min-height: 60px; }
+
+/* Photo capture */
+.photo-area {
+  width: 100%; aspect-ratio: 4/3; border-radius: var(--radius);
+  border: 2px dashed var(--green-200); background: var(--green-50);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; overflow: hidden; position: relative; transition: border-color 0.2s;
+}
+.photo-area:active { border-color: var(--green-500); }
+.photo-area .photo-icon { font-size: 40px; margin-bottom: 8px; }
+.photo-area .photo-text { font-size: 13px; color: var(--text3); }
+.photo-area img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.photo-area .photo-remove {
+  position: absolute; top: 8px; right: 8px; width: 28px; height: 28px;
+  border-radius: 50%; background: rgba(0,0,0,0.5); color: white;
+  border: none; font-size: 16px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+}
+#photo-input { display: none; }
+
+/* Slider scale */
+.scale-row { display: flex; gap: 8px; }
+.scale-btn {
+  flex: 1; padding: 10px 4px; border-radius: var(--radius-sm);
+  border: 2px solid var(--border); background: var(--card);
+  cursor: pointer; text-align: center; font-size: 13px; font-weight: 600;
+  transition: all 0.2s; color: var(--text2);
+}
+.scale-btn.active { border-color: var(--green-700); background: var(--green-50); color: var(--green-700); }
+
+/* Bristol scale */
+.bristol-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.bristol-grid:last-child { display: grid; grid-template-columns: repeat(3, 1fr); }
+.bristol-btn {
+  padding: 10px 4px; border-radius: var(--radius-sm); border: 2px solid var(--border);
+  background: var(--card); cursor: pointer; text-align: center; transition: all 0.2s;
+}
+.bristol-btn.active { border-color: var(--green-700); background: var(--green-50); }
+.bristol-btn .bristol-icon { font-size: 20px; display: block; }
+.bristol-btn .bristol-num { font-size: 11px; font-weight: 700; color: var(--text2); }
+.bristol-btn .bristol-desc { font-size: 9px; color: var(--text3); }
+
+/* Wellbeing faces */
+.face-row { display: flex; gap: 8px; justify-content: center; }
+.face-btn {
+  width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--border);
+  background: var(--card); cursor: pointer; font-size: 28px;
+  display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+}
+.face-btn.active { border-color: var(--green-700); background: var(--green-50); transform: scale(1.15); }
+
+/* Drink categories */
+.drink-cats { display: flex; gap: 8px; flex-wrap: wrap; }
+.drink-cat {
+  padding: 8px 14px; border-radius: 20px; border: 1.5px solid var(--border);
+  background: var(--card); cursor: pointer; font-size: 13px; transition: all 0.2s;
+}
+.drink-cat.active { border-color: var(--green-700); background: var(--green-50); color: var(--green-700); font-weight: 600; }
+
+/* Submit button */
+.submit-btn {
+  width: 100%; padding: 16px; border-radius: var(--radius);
+  background: var(--green-700); color: white; border: none;
+  font-size: 16px; font-weight: 700; cursor: pointer;
+  margin-top: 20px; transition: background 0.2s;
+}
+.submit-btn:active { background: var(--green-900); }
+.submit-btn:disabled { background: var(--text3); }
+
+/* Time input row */
+.time-row { display: flex; gap: 12px; align-items: center; }
+.time-row .form-input { flex: 1; }
+
+/* ========== DASHBOARD SCREEN ========== */
+.dash-card {
+  background: var(--card); border-radius: var(--radius); padding: 16px;
+  box-shadow: 0 1px 4px var(--shadow); border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.dash-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; color: var(--text); }
+.dash-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.dash-stat { text-align: center; padding: 12px; background: var(--green-50); border-radius: var(--radius-sm); }
+.dash-stat .ds-num { font-size: 24px; font-weight: 800; color: var(--green-700); }
+.dash-stat .ds-label { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+/* ========== SETTINGS SCREEN ========== */
+.settings-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; background: var(--card); border-radius: var(--radius);
+  margin-bottom: 8px; border: 1px solid var(--border);
+}
+.settings-item .si-left { display: flex; align-items: center; gap: 12px; }
+.settings-item .si-icon { font-size: 20px; }
+.settings-item .si-text { font-size: 14px; font-weight: 500; }
+.settings-item .si-arrow { color: var(--text3); font-size: 18px; }
+
+/* ========== OVERLAY ========== */
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.3);
+  z-index: 190; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.overlay.show { opacity: 1; pointer-events: auto; }
+
+/* ========== EMPTY STATE ========== */
+.empty-state { text-align: center; padding: 40px 20px; }
+.empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
+.empty-state .empty-text { font-size: 15px; color: var(--text2); }
+.empty-state .empty-sub { font-size: 13px; color: var(--text3); margin-top: 4px; }
+
+/* ========== TOAST ========== */
+.toast {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px);
+  background: var(--green-700); color: white; padding: 12px 24px;
+  border-radius: 24px; font-size: 14px; font-weight: 600; z-index: 300;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2); transition: transform 0.3s ease;
+  white-space: nowrap;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ========== ANIMATIONS ========== */
+@keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+.pop { animation: pop 0.3s ease; }
+
+/* ========== FAVORITES ========== */
+.fav-section { margin-bottom: 16px; }
+.fav-section .form-label { display: flex; align-items: center; justify-content: space-between; }
+.fav-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.fav-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 20px;
+  background: var(--green-50); border: 1.5px solid var(--green-200);
+  cursor: pointer; font-size: 13px; font-weight: 500; color: var(--green-700);
+  transition: all 0.2s; position: relative;
+}
+.fav-chip:active { background: var(--green-100); transform: scale(0.95); }
+.fav-chip .fav-star { font-size: 11px; }
+.fav-chip .fav-remove {
+  display: none; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--red); color: white; border: none; font-size: 11px;
+  cursor: pointer; align-items: center; justify-content: center; line-height: 1;
+}
+.fav-chip.editing .fav-remove { display: flex; }
+.fav-edit-btn {
+  background: none; border: none; font-size: 12px; color: var(--text3);
+  cursor: pointer; padding: 2px 6px;
+}
+.save-fav-row {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+  padding: 10px 14px; background: var(--green-50); border-radius: var(--radius-sm);
+  border: 1px dashed var(--green-200); cursor: pointer; transition: background 0.2s;
+}
+.save-fav-row:active { background: var(--green-100); }
+.save-fav-row .fav-plus { font-size: 18px; color: var(--green-500); }
+.save-fav-row .fav-save-text { font-size: 13px; color: var(--green-700); font-weight: 500; }
+
+/* ========== SCREEN VISIBILITY ========== */
+.screen { display: none; }
+.screen.active { display: block; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- HEADER -->
+  <div class="header">
+    <h1>🌿 GutTracker</h1>
+    <div class="header-right">
+      <button class="header-btn" onclick="showExportConfirm()" title="Exportálás">📤</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+    <div class="main-content">
+
+      <!-- ===== NAPLÓ SCREEN ===== -->
+      <div id="screen-diary" class="screen active">
+        <div class="date-strip" id="date-strip"></div>
+
+        <!-- Gas counter banner -->
+        <div class="gas-banner">
+          <div class="gas-banner-left">
+            <div class="gas-banner-count" id="gas-count">0</div>
+            <div class="gas-banner-label">
+              <strong>💨 Puki ma</strong><br>
+              <span id="gas-last-smell"></span>
+            </div>
+          </div>
+          <button class="gas-btn" onclick="recordGas()" title="💨 +1">+1</button>
+        </div>
+
+        <div class="section-title" id="diary-date-label">Ma</div>
+        <div id="timeline"></div>
+      </div>
+
+      <!-- ===== DASHBOARD SCREEN ===== -->
+      <div id="screen-dashboard" class="screen">
+        <div class="section-title">Napi összesítő</div>
+        <div class="dash-card">
+          <div class="dash-stats">
+            <div class="dash-stat"><div class="ds-num" id="dash-meals">0</div><div class="ds-label">Étkezés</div></div>
+            <div class="dash-stat"><div class="ds-num" id="dash-drinks">0</div><div class="ds-label">Ital</div></div>
+            <div class="dash-stat"><div class="ds-num" id="dash-gas">0</div><div class="ds-label">💨 Puki</div></div>
+            <div class="dash-stat"><div class="ds-num" id="dash-stool">0</div><div class="ds-label">🚽 WC</div></div>
+          </div>
+        </div>
+        <div class="dash-card">
+          <h3>Tünetek</h3>
+          <div class="dash-stats">
+            <div class="dash-stat"><div class="ds-num" id="dash-bloat">-</div><div class="ds-label">Puffadás</div></div>
+            <div class="dash-stat"><div class="ds-num" id="dash-gas-int">-</div><div class="ds-label">Gázosság</div></div>
+            <div class="dash-stat"><div class="ds-num" id="dash-pain">-</div><div class="ds-label">Fájdalom</div></div>
+            <div class="dash-stat"><div class="ds-num" id="dash-well">-</div><div class="ds-label">Közérzet</div></div>
+          </div>
+        </div>
+        <div class="dash-card">
+          <h3>Folyadékbevitel</h3>
+          <div class="dash-stats">
+            <div class="dash-stat" style="grid-column: span 2;"><div class="ds-num" id="dash-liquid">0 ml</div><div class="ds-label">Összesen ma</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SETTINGS SCREEN ===== -->
+      <div id="screen-settings" class="screen">
+        <div class="section-title">Beállítások</div>
+        <div class="settings-item" onclick="exportData()">
+          <div class="si-left"><span class="si-icon">📤</span><span class="si-text">Adatok exportálása (JSON)</span></div>
+          <span class="si-arrow">›</span>
+        </div>
+        <div class="settings-item" onclick="exportPhotos()">
+          <div class="si-left"><span class="si-icon">🖼️</span><span class="si-text">Fotók exportálása</span></div>
+          <span class="si-arrow">›</span>
+        </div>
+        <div class="settings-item" onclick="importData()">
+          <div class="si-left"><span class="si-icon">📥</span><span class="si-text">Adatok importálása</span></div>
+          <span class="si-arrow">›</span>
+        </div>
+        <div class="settings-item" onclick="clearAllData()">
+          <div class="si-left"><span class="si-icon">🗑️</span><span class="si-text">Összes adat törlése</span></div>
+          <span class="si-arrow">›</span>
+        </div>
+        <input type="file" id="import-input" accept=".json" style="display:none" onchange="handleImport(event)">
+
+        <div class="section-title" style="margin-top: 24px;">Információ</div>
+        <div class="settings-item">
+          <div class="si-left"><span class="si-icon">ℹ️</span><span class="si-text">GutTracker v1.0</span></div>
+          <span style="font-size: 12px; color: var(--text3);">Személyes emésztési napló</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FAB -->
+  <button class="fab" id="fab-btn" onclick="openAddScreen()">+</button>
+
+  <!-- BOTTOM NAV -->
+  <nav class="nav">
+    <button class="nav-item active" data-screen="diary"><span class="nav-icon">📋</span>Napló</button>
+    <button class="nav-item" data-screen="dashboard"><span class="nav-icon">📊</span>Áttekintés</button>
+    <button class="nav-item" data-screen="settings"><span class="nav-icon">⚙️</span>Beállítások</button>
+  </nav>
+</div>
+
+<!-- ===== ADD SCREEN (slides up) ===== -->
+<div class="add-screen" id="add-screen">
+  <div class="add-header">
+    <h2 id="add-title">Új bejegyzés</h2>
+    <button class="add-close" onclick="closeAddScreen()">✕</button>
+  </div>
+  <div class="add-body" id="add-body">
+
+    <!-- Category selection -->
+    <div id="add-step-cat">
+      <div class="section-title">Mit szeretnél rögzíteni?</div>
+      <div class="cat-grid">
+        <button class="cat-btn" onclick="selectCategory('meal')"><span class="cat-emoji">🍽️</span><span class="cat-label">Étkezés</span></button>
+        <button class="cat-btn" onclick="selectCategory('drink')"><span class="cat-emoji">🥤</span><span class="cat-label">Ital</span></button>
+        <button class="cat-btn" onclick="selectCategory('symptom')"><span class="cat-emoji">🤢</span><span class="cat-label">Tünet</span></button>
+        <button class="cat-btn" onclick="selectCategory('stool')"><span class="cat-emoji">🚽</span><span class="cat-label">Széklet</span></button>
+        <button class="cat-btn" onclick="selectCategory('wellbeing')"><span class="cat-emoji">😊</span><span class="cat-label">Közérzet</span></button>
+        <button class="cat-btn" onclick="selectCategory('gas')"><span class="cat-emoji">💨</span><span class="cat-label">Gázosság</span></button>
+      </div>
+    </div>
+
+    <!-- Dynamic form area -->
+    <div id="add-form" style="display: none;"></div>
+  </div>
+</div>
+
+<!-- SMELL POPUP -->
+<div class="overlay" id="smell-overlay" onclick="skipSmell()"></div>
+<div class="smell-popup" id="smell-popup">
+  <h3>Büdösségmérce 😇→😷</h3>
+  <div class="smell-options">
+    <button class="smell-opt" onclick="setSmell(1)"><span class="smell-emoji">😇</span><span class="smell-label">Semleges</span></button>
+    <button class="smell-opt" onclick="setSmell(2)"><span class="smell-emoji">😐</span><span class="smell-label">Közepes</span></button>
+    <button class="smell-opt" onclick="setSmell(3)"><span class="smell-emoji">😷</span><span class="smell-label">Erős</span></button>
+  </div>
+  <button class="smell-skip" onclick="skipSmell()">Kihagyás</button>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ========== DATABASE (IndexedDB) ==========
+const DB_NAME = 'GutTrackerDB';
+const DB_VER = 2;
+let db;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = (e) => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('entries')) {
+        const store = d.createObjectStore('entries', { keyPath: 'id' });
+        store.createIndex('date', 'date', { unique: false });
+        store.createIndex('type', 'type', { unique: false });
+      }
+      if (!d.objectStoreNames.contains('favorites')) {
+        const favStore = d.createObjectStore('favorites', { keyPath: 'id' });
+        favStore.createIndex('type', 'type', { unique: false });
+        favStore.createIndex('useCount', 'useCount', { unique: false });
+      }
+    };
+    req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+    req.onerror = (e) => reject(e);
+  });
+}
+
+// ========== FAVORITES DB ==========
+function addFavorite(fav) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('favorites', 'readwrite');
+    tx.objectStore('favorites').put(fav);
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e);
+  });
+}
+
+function getFavoritesByType(type) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('favorites', 'readonly');
+    const idx = tx.objectStore('favorites').index('type');
+    const req = idx.getAll(type);
+    req.onsuccess = () => resolve(req.result.sort((a, b) => (b.useCount || 0) - (a.useCount || 0)));
+    req.onerror = (e) => reject(e);
+  });
+}
+
+function deleteFavorite(id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('favorites', 'readwrite');
+    tx.objectStore('favorites').delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e);
+  });
+}
+
+function incrementFavUse(id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('favorites', 'readwrite');
+    const store = tx.objectStore('favorites');
+    const req = store.get(id);
+    req.onsuccess = () => {
+      const fav = req.result;
+      if (fav) { fav.useCount = (fav.useCount || 0) + 1; fav.lastUsed = new Date().toISOString(); store.put(fav); }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e);
+  });
+}
+
+function addEntry(entry) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('entries', 'readwrite');
+    tx.objectStore('entries').add(entry);
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e);
+  });
+}
+
+function getEntriesByDate(dateStr) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('entries', 'readonly');
+    const idx = tx.objectStore('entries').index('date');
+    const req = idx.getAll(dateStr);
+    req.onsuccess = () => resolve(req.result.sort((a, b) => a.time.localeCompare(b.time)));
+    req.onerror = (e) => reject(e);
+  });
+}
+
+function getAllEntries() {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('entries', 'readonly');
+    const req = tx.objectStore('entries').getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = (e) => reject(e);
+  });
+}
+
+function deleteEntry(id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('entries', 'readwrite');
+    tx.objectStore('entries').delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e);
+  });
+}
+
+function clearDB() {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['entries', 'favorites'], 'readwrite');
+    tx.objectStore('entries').clear();
+    tx.objectStore('favorites').clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e);
+  });
+}
+
+// ========== STATE ==========
+let selectedDate = new Date();
+let currentCategory = null;
+let capturedPhoto = null;
+let pendingGasEntry = null;
+
+// ========== UTILS ==========
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function dateStr(d) { return d.toISOString().split('T')[0]; }
+function timeStr(d) { return d.toTimeString().slice(0, 5); }
+function todayStr() { return dateStr(new Date()); }
+
+const DAYS_HU = ['V', 'H', 'K', 'Sze', 'Cs', 'P', 'Szo'];
+const MONTHS_HU = ['január', 'február', 'március', 'április', 'május', 'június', 'július', 'augusztus', 'szeptember', 'október', 'november', 'december'];
+
+const SMELL_LABELS = { 1: '😇 Semleges', 2: '😐 Közepes', 3: '😷 Erős' };
+const BRISTOL_DESC = [
+  '', 'Kemény golyók', 'Csomós, kolbász', 'Repedezett kolbász',
+  'Sima, puha', 'Puha darabok', 'Pépszerű', 'Folyékony'
+];
+const BRISTOL_ICONS = ['', '⚫', '🔗', '🌽', '🌭', '☁️', '💧', '🌊'];
+const WELLBEING_FACES = ['😫', '😕', '😐', '🙂', '😊'];
+const DRINK_CATS = ['💧 Víz', '☕ Kávé', '🍵 Tea', '🥛 Tej', '🍺 Sör', '🥤 Üdítő', '🧃 Egyéb'];
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ========== NAVIGATION ==========
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const screen = btn.dataset.screen;
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + screen).classList.add('active');
+    document.getElementById('fab-btn').style.display = screen === 'settings' ? 'none' : 'flex';
+    if (screen === 'dashboard') refreshDashboard();
+  });
+});
+
+// ========== DATE STRIP ==========
+function renderDateStrip() {
+  const strip = document.getElementById('date-strip');
+  strip.innerHTML = '';
+  const today = new Date();
+  for (let i = -3; i <= 3; i++) {
+    const d = new Date(today); d.setDate(d.getDate() + i);
+    const chip = document.createElement('div');
+    chip.className = 'day-chip' + (dateStr(d) === dateStr(selectedDate) ? ' active' : '');
+    chip.innerHTML = `<div class="day-name">${DAYS_HU[d.getDay()]}</div><div class="day-num">${d.getDate()}</div>`;
+    chip.onclick = () => { selectedDate = new Date(d); renderDateStrip(); refreshTimeline(); };
+    strip.appendChild(chip);
+  }
+  // Scroll active into view
+  setTimeout(() => {
+    const active = strip.querySelector('.active');
+    if (active) active.scrollIntoView({ inline: 'center', behavior: 'smooth' });
+  }, 50);
+}
+
+// ========== DATE LABEL ==========
+function updateDateLabel() {
+  const el = document.getElementById('diary-date-label');
+  const ds = dateStr(selectedDate);
+  if (ds === todayStr()) { el.textContent = 'Ma'; }
+  else {
+    const d = selectedDate;
+    el.textContent = `${d.getFullYear()}. ${MONTHS_HU[d.getMonth()]} ${d.getDate()}.`;
+  }
+}
+
+// ========== TIMELINE ==========
+async function refreshTimeline() {
+  updateDateLabel();
+  const ds = dateStr(selectedDate);
+  const entries = await getEntriesByDate(ds);
+  const tl = document.getElementById('timeline');
+
+  // Update gas counter
+  const gasEntries = entries.filter(e => e.type === 'gas');
+  document.getElementById('gas-count').textContent = gasEntries.length;
+  const lastGas = gasEntries[gasEntries.length - 1];
+  document.getElementById('gas-last-smell').textContent = lastGas && lastGas.smell ? SMELL_LABELS[lastGas.smell] : '';
+
+  const nonGas = entries.filter(e => e.type !== 'gas');
+  if (nonGas.length === 0) {
+    tl.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📝</div>
+      <div class="empty-text">Még nincs bejegyzés</div>
+      <div class="empty-sub">Nyomd a + gombot az első bejegyzéshez</div>
+    </div>`;
+    return;
+  }
+
+  tl.innerHTML = nonGas.map(e => renderEntry(e)).join('');
+}
+
+function renderEntry(e) {
+  const iconClass = e.type;
+  let icon = '', name = '', detail = '';
+
+  switch (e.type) {
+    case 'meal':
+      icon = '🍽️'; name = e.description || 'Étkezés';
+      detail = e.tags ? e.tags.join(', ') : '';
+      break;
+    case 'drink':
+      icon = e.category_icon || '🥤'; name = e.name || 'Ital';
+      detail = e.amount_ml ? `${e.amount_ml} ml` : '';
+      break;
+    case 'symptom':
+      icon = '🤢'; name = 'Tünetek';
+      const parts = [];
+      if (e.bloating) parts.push(`Puffadás: ${e.bloating}/5`);
+      if (e.gas_intensity) parts.push(`Gáz: ${e.gas_intensity}/5`);
+      if (e.pain) parts.push(`Fájdalom: ${e.pain}/5`);
+      detail = parts.join(' • ');
+      break;
+    case 'stool':
+      icon = '🚽'; name = `Széklet — Típus ${e.bristol_type}`;
+      detail = BRISTOL_DESC[e.bristol_type] || '';
+      break;
+    case 'wellbeing':
+      icon = WELLBEING_FACES[e.score - 1] || '😐'; name = 'Közérzet';
+      detail = `${e.score}/5` + (e.notes ? ` — ${e.notes}` : '');
+      break;
+    case 'gas':
+      icon = '💨'; name = 'Gázosság';
+      detail = e.smell ? SMELL_LABELS[e.smell] : '';
+      break;
+  }
+
+  const photoHtml = e.photo ? `<img class="entry-photo" src="${e.photo}" alt="fotó">` : '';
+
+  return `<div class="entry" onclick="confirmDelete('${e.id}')">
+    <div class="entry-icon ${iconClass}">${icon}</div>
+    <div class="entry-body">
+      <div class="entry-name">${name}</div>
+      <div class="entry-detail">${detail}</div>
+    </div>
+    ${photoHtml}
+    <div class="entry-time">${e.time}</div>
+  </div>`;
+}
+
+function confirmDelete(id) {
+  if (confirm('Törlöd ezt a bejegyzést?')) {
+    deleteEntry(id).then(() => { refreshTimeline(); showToast('Törölve'); });
+  }
+}
+
+// ========== GAS COUNTER ==========
+function recordGas() {
+  const btn = document.querySelector('.gas-btn');
+  btn.classList.add('pop');
+  setTimeout(() => btn.classList.remove('pop'), 300);
+
+  pendingGasEntry = {
+    id: uid(), type: 'gas',
+    date: dateStr(selectedDate),
+    time: timeStr(new Date()),
+    smell: null
+  };
+
+  // Show smell popup
+  document.getElementById('smell-overlay').classList.add('show');
+  document.getElementById('smell-popup').classList.add('show');
+}
+
+function setSmell(level) {
+  pendingGasEntry.smell = level;
+  saveGasEntry();
+}
+
+function skipSmell() {
+  if (pendingGasEntry) saveGasEntry();
+  else closeSmellPopup();
+}
+
+function saveGasEntry() {
+  closeSmellPopup();
+  addEntry(pendingGasEntry).then(() => {
+    pendingGasEntry = null;
+    refreshTimeline();
+    showToast('💨 +1 rögzítve!');
+  });
+}
+
+function closeSmellPopup() {
+  document.getElementById('smell-overlay').classList.remove('show');
+  document.getElementById('smell-popup').classList.remove('show');
+}
+
+// ========== ADD SCREEN ==========
+function openAddScreen() {
+  currentCategory = null;
+  capturedPhoto = null;
+  document.getElementById('add-step-cat').style.display = 'block';
+  document.getElementById('add-form').style.display = 'none';
+  document.getElementById('add-form').innerHTML = '';
+  document.getElementById('add-title').textContent = 'Új bejegyzés';
+  document.getElementById('add-screen').classList.add('show');
+}
+
+function closeAddScreen() {
+  document.getElementById('add-screen').classList.remove('show');
+}
+
+async function selectCategory(cat) {
+  currentCategory = cat;
+  capturedPhoto = null;
+  document.getElementById('add-step-cat').style.display = 'none';
+  document.getElementById('add-form').style.display = 'block';
+
+  const titles = { meal: '🍽️ Étkezés', drink: '🥤 Ital', symptom: '🤢 Tünetek', stool: '🚽 Széklet', wellbeing: '😊 Közérzet', gas: '💨 Gázosság' };
+  document.getElementById('add-title').textContent = titles[cat];
+
+  const form = document.getElementById('add-form');
+
+  switch (cat) {
+    case 'meal': form.innerHTML = await mealForm(); break;
+    case 'drink': form.innerHTML = await drinkForm(); break;
+    case 'symptom': form.innerHTML = symptomForm(); break;
+    case 'stool': form.innerHTML = stoolForm(); break;
+    case 'wellbeing': form.innerHTML = wellbeingForm(); break;
+    case 'gas': form.innerHTML = gasForm(); break;
+  }
+}
+
+async function mealForm() {
+  const favs = await getFavoritesByType('meal');
+  const favHtml = favs.length ? `
+    <div class="fav-section">
+      <label class="form-label">
+        ⭐ Kedvencek
+        <button class="fav-edit-btn" onclick="toggleFavEdit('meal')">Szerkesztés</button>
+      </label>
+      <div class="fav-chips" id="meal-favs">
+        ${favs.map(f => `<button class="fav-chip" onclick="useFavorite('${f.id}')" data-fav-id="${f.id}">
+          <span class="fav-star">⭐</span> ${f.description}${f.tags && f.tags.length ? ' · ' + f.tags[0] : ''}
+          <button class="fav-remove" onclick="event.stopPropagation(); removeFavorite('${f.id}', 'meal')">✕</button>
+        </button>`).join('')}
+      </div>
+    </div>` : '';
+
+  return `
+    ${favHtml}
+    <div class="form-group">
+      <label class="form-label">Fotó</label>
+      <div class="photo-area" onclick="document.getElementById('photo-input').click()">
+        <span class="photo-icon">📷</span>
+        <span class="photo-text">Koppints a fotózáshoz</span>
+      </div>
+      <input type="file" id="photo-input" accept="image/*" capture="environment" onchange="handlePhoto(event)">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Leírás</label>
+      <textarea class="form-textarea" id="meal-desc" placeholder="pl. Zabkása mézzel, banán"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Címke</label>
+      <div class="drink-cats" id="meal-tags">
+        <button class="drink-cat" onclick="toggleTag(this)">🌅 Reggeli</button>
+        <button class="drink-cat" onclick="toggleTag(this)">☀️ Ebéd</button>
+        <button class="drink-cat" onclick="toggleTag(this)">🌙 Vacsora</button>
+        <button class="drink-cat" onclick="toggleTag(this)">🍪 Nasi</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Időpont</label>
+      <input type="time" class="form-input" id="meal-time" value="${timeStr(new Date())}">
+    </div>
+    <div class="save-fav-row" onclick="toggleSaveFav()">
+      <span class="fav-plus">⭐</span>
+      <span class="fav-save-text" id="save-fav-text">Mentés kedvencnek is</span>
+    </div>
+    <input type="hidden" id="save-as-fav" value="false">
+    <button class="submit-btn" onclick="saveMeal()">Mentés</button>`;
+}
+
+async function drinkForm() {
+  const favs = await getFavoritesByType('drink');
+  const favHtml = favs.length ? `
+    <div class="fav-section">
+      <label class="form-label">
+        ⭐ Kedvenc italok
+        <button class="fav-edit-btn" onclick="toggleFavEdit('drink')">Szerkesztés</button>
+      </label>
+      <div class="fav-chips" id="drink-favs">
+        ${favs.map(f => `<button class="fav-chip" onclick="useDrinkFavorite('${f.id}')" data-fav-id="${f.id}">
+          <span class="fav-star">⭐</span> ${f.name}${f.amount_ml ? ' · ' + f.amount_ml + 'ml' : ''}
+          <button class="fav-remove" onclick="event.stopPropagation(); removeFavorite('${f.id}', 'drink')">✕</button>
+        </button>`).join('')}
+      </div>
+    </div>` : '';
+
+  return `
+    ${favHtml}
+    <div class="form-group">
+      <label class="form-label">Típus</label>
+      <div class="drink-cats" id="drink-type">
+        ${DRINK_CATS.map(c => `<button class="drink-cat" onclick="selectDrinkCat(this)">${c}</button>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mennyiség (ml)</label>
+      <div class="scale-row">
+        <button class="scale-btn" onclick="setDrinkAmount(this, 100)">100</button>
+        <button class="scale-btn" onclick="setDrinkAmount(this, 200)">200</button>
+        <button class="scale-btn" onclick="setDrinkAmount(this, 330)">330</button>
+        <button class="scale-btn" onclick="setDrinkAmount(this, 500)">500</button>
+      </div>
+      <input type="number" class="form-input" id="drink-ml" placeholder="Egyéb mennyiség" style="margin-top: 8px;">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Megjegyzés</label>
+      <input type="text" class="form-input" id="drink-note" placeholder="pl. tejjel, jéggel">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Időpont</label>
+      <input type="time" class="form-input" id="drink-time" value="${timeStr(new Date())}">
+    </div>
+    <div class="save-fav-row" onclick="toggleSaveFavDrink()">
+      <span class="fav-plus">⭐</span>
+      <span class="fav-save-text" id="save-fav-drink-text">Mentés kedvencnek is</span>
+    </div>
+    <input type="hidden" id="save-as-fav-drink" value="false">
+    <button class="submit-btn" onclick="saveDrink()">Mentés</button>`;
+}
+
+function symptomForm() {
+  return `
+    <div class="form-group">
+      <label class="form-label">Puffadás</label>
+      <div class="scale-row" id="sym-bloat">
+        ${[1,2,3,4,5].map(n => `<button class="scale-btn" onclick="selectScale(this, 'sym-bloat')">${n}</button>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Gázosság</label>
+      <div class="scale-row" id="sym-gas">
+        ${[1,2,3,4,5].map(n => `<button class="scale-btn" onclick="selectScale(this, 'sym-gas')">${n}</button>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Hasi fájdalom</label>
+      <div class="scale-row" id="sym-pain">
+        ${[1,2,3,4,5].map(n => `<button class="scale-btn" onclick="selectScale(this, 'sym-pain')">${n}</button>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Megjegyzés</label>
+      <textarea class="form-textarea" id="sym-notes" placeholder="pl. ebéd után kezdődött"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Időpont</label>
+      <input type="time" class="form-input" id="sym-time" value="${timeStr(new Date())}">
+    </div>
+    <button class="submit-btn" onclick="saveSymptom()">Mentés</button>`;
+}
+
+function stoolForm() {
+  return `
+    <div class="form-group">
+      <label class="form-label">Bristol Stool Scale (típus)</label>
+      <div class="bristol-grid">
+        ${[1,2,3,4].map(n => `<button class="bristol-btn" onclick="selectBristol(this, ${n})">
+          <span class="bristol-icon">${BRISTOL_ICONS[n]}</span>
+          <span class="bristol-num">Típus ${n}</span>
+          <span class="bristol-desc">${BRISTOL_DESC[n]}</span>
+        </button>`).join('')}
+      </div>
+      <div class="bristol-grid" style="margin-top: 8px;">
+        ${[5,6,7].map(n => `<button class="bristol-btn" onclick="selectBristol(this, ${n})">
+          <span class="bristol-icon">${BRISTOL_ICONS[n]}</span>
+          <span class="bristol-num">Típus ${n}</span>
+          <span class="bristol-desc">${BRISTOL_DESC[n]}</span>
+        </button>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Megjegyzés</label>
+      <input type="text" class="form-input" id="stool-notes" placeholder="Egyéb megjegyzés">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Időpont</label>
+      <input type="time" class="form-input" id="stool-time" value="${timeStr(new Date())}">
+    </div>
+    <button class="submit-btn" onclick="saveStool()">Mentés</button>`;
+}
+
+function wellbeingForm() {
+  return `
+    <div class="form-group">
+      <label class="form-label">Hogy érzed magad?</label>
+      <div class="face-row" id="wb-faces">
+        ${WELLBEING_FACES.map((f, i) => `<button class="face-btn" onclick="selectFace(this, ${i+1})">${f}</button>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Megjegyzés</label>
+      <textarea class="form-textarea" id="wb-notes" placeholder="Mi befolyásolta a napodat?"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Időpont</label>
+      <input type="time" class="form-input" id="wb-time" value="${timeStr(new Date())}">
+    </div>
+    <button class="submit-btn" onclick="saveWellbeing()">Mentés</button>`;
+}
+
+function gasForm() {
+  return `
+    <div class="form-group">
+      <label class="form-label">Büdösségmérce</label>
+      <div class="smell-options" style="position:static; transform:none; box-shadow:none; padding:0;">
+        <button class="smell-opt" onclick="selectInlineSmell(this, 1)"><span class="smell-emoji">😇</span><span class="smell-label">Semleges</span></button>
+        <button class="smell-opt" onclick="selectInlineSmell(this, 2)"><span class="smell-emoji">😐</span><span class="smell-label">Közepes</span></button>
+        <button class="smell-opt" onclick="selectInlineSmell(this, 3)"><span class="smell-emoji">😷</span><span class="smell-label">Erős</span></button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Megjegyzés</label>
+      <input type="text" class="form-input" id="gas-notes" placeholder="pl. ebéd után">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Időpont</label>
+      <input type="time" class="form-input" id="gas-time" value="${timeStr(new Date())}">
+    </div>
+    <button class="submit-btn" onclick="saveGasFromForm()">Mentés</button>`;
+}
+
+// ========== FORM HELPERS ==========
+let selectedBristol = null, selectedWellbeing = null, selectedSmellInline = null, selectedDrinkCat = null;
+
+function selectScale(btn, groupId) {
+  document.querySelectorAll(`#${groupId} .scale-btn`).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function selectBristol(btn, val) {
+  document.querySelectorAll('.bristol-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedBristol = val;
+}
+
+function selectFace(btn, val) {
+  document.querySelectorAll('.face-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedWellbeing = val;
+}
+
+function selectInlineSmell(btn, val) {
+  document.querySelectorAll('#add-form .smell-opt').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedSmellInline = val;
+}
+
+function selectDrinkCat(btn) {
+  document.querySelectorAll('#drink-type .drink-cat').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedDrinkCat = btn.textContent.trim();
+}
+
+function setDrinkAmount(btn, val) {
+  document.querySelectorAll('#drink-ml').forEach(i => i.value = val);
+  document.querySelectorAll('.scale-row .scale-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('drink-ml').value = val;
+}
+
+function toggleTag(btn) { btn.classList.toggle('active'); }
+
+function getScaleValue(groupId) {
+  const active = document.querySelector(`#${groupId} .scale-btn.active`);
+  return active ? parseInt(active.textContent) : null;
+}
+
+// ========== PHOTO HANDLING ==========
+function handlePhoto(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Compress photo
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX) { h = h * MAX / w; w = MAX; }
+      if (h > MAX) { w = w * MAX / h; h = MAX; }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      capturedPhoto = canvas.toDataURL('image/jpeg', 0.8);
+
+      // Update photo area
+      const area = document.querySelector('.photo-area');
+      area.innerHTML = `<img src="${capturedPhoto}" alt="fotó"><button class="photo-remove" onclick="event.stopPropagation(); removePhoto()">✕</button>`;
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removePhoto() {
+  capturedPhoto = null;
+  const area = document.querySelector('.photo-area');
+  area.innerHTML = `<span class="photo-icon">📷</span><span class="photo-text">Koppints a fotózáshoz</span>`;
+}
+
+// ========== SAVE FUNCTIONS ==========
+async function saveMeal() {
+  const desc = document.getElementById('meal-desc').value;
+  if (!desc && !capturedPhoto) { showToast('Adj meg leírást vagy fotót!'); return; }
+  const tags = Array.from(document.querySelectorAll('#meal-tags .drink-cat.active')).map(b => b.textContent.trim());
+  const entry = {
+    id: uid(), type: 'meal', date: dateStr(selectedDate),
+    time: document.getElementById('meal-time').value,
+    description: desc, photo: capturedPhoto, tags
+  };
+  await addEntry(entry);
+
+  // Save as favorite if checked
+  const saveFav = document.getElementById('save-as-fav');
+  if (saveFav && saveFav.value === 'true' && desc) {
+    await addFavorite({
+      id: 'fav_' + uid(), type: 'meal',
+      description: desc, tags: tags,
+      useCount: 0, createdAt: new Date().toISOString()
+    });
+    showToast('🍽️ Étkezés mentve + ⭐ kedvenc!');
+  } else {
+    showToast('🍽️ Étkezés mentve!');
+  }
+  closeAddScreen(); refreshTimeline();
+}
+
+// ========== FAVORITES LOGIC ==========
+function toggleSaveFav() {
+  const el = document.getElementById('save-as-fav');
+  const txt = document.getElementById('save-fav-text');
+  if (el.value === 'false') {
+    el.value = 'true';
+    txt.textContent = '⭐ Kedvencként is mentjük!';
+    txt.parentElement.style.background = 'var(--green-100)';
+    txt.parentElement.style.borderStyle = 'solid';
+  } else {
+    el.value = 'false';
+    txt.textContent = 'Mentés kedvencnek is';
+    txt.parentElement.style.background = '';
+    txt.parentElement.style.borderStyle = 'dashed';
+  }
+}
+
+function toggleSaveFavDrink() {
+  const el = document.getElementById('save-as-fav-drink');
+  const txt = document.getElementById('save-fav-drink-text');
+  if (el.value === 'false') {
+    el.value = 'true';
+    txt.textContent = '⭐ Kedvencként is mentjük!';
+    txt.parentElement.style.background = 'var(--green-100)';
+    txt.parentElement.style.borderStyle = 'solid';
+  } else {
+    el.value = 'false';
+    txt.textContent = 'Mentés kedvencnek is';
+    txt.parentElement.style.background = '';
+    txt.parentElement.style.borderStyle = 'dashed';
+  }
+}
+
+async function useFavorite(favId) {
+  const tx = db.transaction('favorites', 'readonly');
+  const req = tx.objectStore('favorites').get(favId);
+  req.onsuccess = async () => {
+    const fav = req.result;
+    if (!fav) return;
+    // Quick-save: create entry immediately with current time
+    const entry = {
+      id: uid(), type: 'meal', date: dateStr(selectedDate),
+      time: timeStr(new Date()),
+      description: fav.description, photo: null, tags: fav.tags || []
+    };
+    await addEntry(entry);
+    await incrementFavUse(favId);
+    closeAddScreen(); refreshTimeline();
+    showToast(`⭐ ${fav.description} — mentve!`);
+  };
+}
+
+async function useDrinkFavorite(favId) {
+  const tx = db.transaction('favorites', 'readonly');
+  const req = tx.objectStore('favorites').get(favId);
+  req.onsuccess = async () => {
+    const fav = req.result;
+    if (!fav) return;
+    const entry = {
+      id: uid(), type: 'drink', date: dateStr(selectedDate),
+      time: timeStr(new Date()),
+      name: fav.name, category: fav.category,
+      category_icon: fav.category_icon, amount_ml: fav.amount_ml
+    };
+    await addEntry(entry);
+    await incrementFavUse(favId);
+    closeAddScreen(); refreshTimeline();
+    showToast(`⭐ ${fav.name} — mentve!`);
+  };
+}
+
+function toggleFavEdit(type) {
+  const container = document.getElementById(type === 'meal' ? 'meal-favs' : 'drink-favs');
+  if (!container) return;
+  const chips = container.querySelectorAll('.fav-chip');
+  const isEditing = chips[0]?.classList.contains('editing');
+  chips.forEach(c => c.classList.toggle('editing', !isEditing));
+}
+
+async function removeFavorite(id, type) {
+  if (confirm('Törlöd ezt a kedvencet?')) {
+    await deleteFavorite(id);
+    const chip = document.querySelector(`[data-fav-id="${id}"]`);
+    if (chip) chip.remove();
+    showToast('Kedvenc törölve');
+  }
+}
+
+async function saveDrink() {
+  if (!selectedDrinkCat) { showToast('Válassz ital típust!'); return; }
+  const ml = parseInt(document.getElementById('drink-ml').value) || 0;
+  const note = document.getElementById('drink-note').value;
+  const name = selectedDrinkCat + (note ? ' (' + note + ')' : '');
+  const entry = {
+    id: uid(), type: 'drink', date: dateStr(selectedDate),
+    time: document.getElementById('drink-time').value,
+    name: name, category: selectedDrinkCat,
+    category_icon: selectedDrinkCat.split(' ')[0],
+    amount_ml: ml
+  };
+  await addEntry(entry);
+
+  // Save as favorite if checked
+  const saveFav = document.getElementById('save-as-fav-drink');
+  if (saveFav && saveFav.value === 'true') {
+    await addFavorite({
+      id: 'fav_' + uid(), type: 'drink',
+      name: name, category: selectedDrinkCat,
+      category_icon: selectedDrinkCat.split(' ')[0],
+      amount_ml: ml, useCount: 0, createdAt: new Date().toISOString()
+    });
+    showToast('🥤 Ital mentve + ⭐ kedvenc!');
+  } else {
+    showToast('🥤 Ital mentve!');
+  }
+  selectedDrinkCat = null;
+  closeAddScreen(); refreshTimeline();
+}
+
+async function saveSymptom() {
+  const bloating = getScaleValue('sym-bloat');
+  const gas = getScaleValue('sym-gas');
+  const pain = getScaleValue('sym-pain');
+  if (!bloating && !gas && !pain) { showToast('Jelölj be legalább egy tünetet!'); return; }
+  const entry = {
+    id: uid(), type: 'symptom', date: dateStr(selectedDate),
+    time: document.getElementById('sym-time').value,
+    bloating, gas_intensity: gas, pain,
+    notes: document.getElementById('sym-notes').value
+  };
+  await addEntry(entry);
+  closeAddScreen(); refreshTimeline();
+  showToast('🤢 Tünetek mentve!');
+}
+
+async function saveStool() {
+  if (!selectedBristol) { showToast('Válassz Bristol típust!'); return; }
+  const entry = {
+    id: uid(), type: 'stool', date: dateStr(selectedDate),
+    time: document.getElementById('stool-time').value,
+    bristol_type: selectedBristol,
+    notes: document.getElementById('stool-notes').value
+  };
+  await addEntry(entry);
+  selectedBristol = null;
+  closeAddScreen(); refreshTimeline();
+  showToast('🚽 Széklet mentve!');
+}
+
+async function saveWellbeing() {
+  if (!selectedWellbeing) { showToast('Válassz közérzetet!'); return; }
+  const entry = {
+    id: uid(), type: 'wellbeing', date: dateStr(selectedDate),
+    time: document.getElementById('wb-time').value,
+    score: selectedWellbeing,
+    notes: document.getElementById('wb-notes').value
+  };
+  await addEntry(entry);
+  selectedWellbeing = null;
+  closeAddScreen(); refreshTimeline();
+  showToast('😊 Közérzet mentve!');
+}
+
+async function saveGasFromForm() {
+  const entry = {
+    id: uid(), type: 'gas', date: dateStr(selectedDate),
+    time: document.getElementById('gas-time').value,
+    smell: selectedSmellInline,
+    notes: document.getElementById('gas-notes')?.value || ''
+  };
+  await addEntry(entry);
+  selectedSmellInline = null;
+  closeAddScreen(); refreshTimeline();
+  showToast('💨 Gázosság mentve!');
+}
+
+// ========== DASHBOARD ==========
+async function refreshDashboard() {
+  const ds = dateStr(selectedDate);
+  const entries = await getEntriesByDate(ds);
+
+  document.getElementById('dash-meals').textContent = entries.filter(e => e.type === 'meal').length;
+  document.getElementById('dash-drinks').textContent = entries.filter(e => e.type === 'drink').length;
+  document.getElementById('dash-gas').textContent = entries.filter(e => e.type === 'gas').length;
+  document.getElementById('dash-stool').textContent = entries.filter(e => e.type === 'stool').length;
+
+  // Symptoms
+  const syms = entries.filter(e => e.type === 'symptom');
+  const avg = (arr, key) => {
+    const vals = arr.map(e => e[key]).filter(v => v != null);
+    return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '-';
+  };
+  document.getElementById('dash-bloat').textContent = avg(syms, 'bloating');
+  document.getElementById('dash-gas-int').textContent = avg(syms, 'gas_intensity');
+  document.getElementById('dash-pain').textContent = avg(syms, 'pain');
+
+  const wbs = entries.filter(e => e.type === 'wellbeing');
+  document.getElementById('dash-well').textContent = wbs.length ? WELLBEING_FACES[Math.round(wbs.reduce((a, e) => a + e.score, 0) / wbs.length) - 1] : '-';
+
+  // Liquid
+  const totalMl = entries.filter(e => e.type === 'drink').reduce((a, e) => a + (e.amount_ml || 0), 0);
+  document.getElementById('dash-liquid').textContent = totalMl >= 1000 ? `${(totalMl/1000).toFixed(1)} L` : `${totalMl} ml`;
+}
+
+// ========== EXPORT / IMPORT ==========
+function showExportConfirm() {
+  if (confirm('Exportálod az összes adatot JSON formátumban?')) exportData();
+}
+
+async function exportData() {
+  const entries = await getAllEntries();
+
+  // Separate photos from data for cleaner export
+  const exportEntries = entries.map(e => {
+    const copy = { ...e };
+    if (copy.photo) {
+      copy.has_photo = true;
+      delete copy.photo; // Photos exported separately
+    }
+    return copy;
+  });
+
+  // Group by date
+  const grouped = {};
+  exportEntries.forEach(e => {
+    if (!grouped[e.date]) grouped[e.date] = [];
+    grouped[e.date].push(e);
+  });
+
+  // Get favorites too
+  const allFavs = await new Promise((resolve) => {
+    const tx = db.transaction('favorites', 'readonly');
+    const req = tx.objectStore('favorites').getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve([]);
+  });
+
+  const exportObj = {
+    app: 'GutTracker', version: '1.0',
+    exported_at: new Date().toISOString(),
+    total_entries: entries.length,
+    favorites: allFavs,
+    days: grouped
+  };
+
+  const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `guttracker_export_${todayStr()}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast('📤 Export kész!');
+}
+
+async function exportPhotos() {
+  const entries = await getAllEntries();
+  const withPhotos = entries.filter(e => e.photo);
+  if (withPhotos.length === 0) { showToast('Nincsenek fotók'); return; }
+
+  // Export photos as individual files
+  for (const e of withPhotos) {
+    const a = document.createElement('a');
+    a.href = e.photo;
+    a.download = `${e.date}_${e.time.replace(':', '')}.jpg`;
+    a.click();
+    await new Promise(r => setTimeout(r, 300));
+  }
+  showToast(`🖼️ ${withPhotos.length} fotó exportálva!`);
+}
+
+function importData() {
+  document.getElementById('import-input').click();
+}
+
+async function handleImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    let count = 0;
+    if (data.days) {
+      for (const [date, entries] of Object.entries(data.days)) {
+        for (const entry of entries) {
+          try { await addEntry(entry); count++; } catch (e) { /* skip duplicates */ }
+        }
+      }
+    }
+    refreshTimeline();
+    showToast(`📥 ${count} bejegyzés importálva!`);
+  } catch (e) {
+    showToast('Hiba az importálás során');
+  }
+  event.target.value = '';
+}
+
+async function clearAllData() {
+  if (confirm('Biztosan törlöd az ÖSSZES adatot? Ez nem vonható vissza!')) {
+    if (confirm('Tényleg törlöd? Minden adat elvész.')) {
+      await clearDB();
+      refreshTimeline();
+      showToast('🗑️ Minden törölve');
+    }
+  }
+}
+
+// ========== INIT ==========
+openDB().then(() => {
+  renderDateStrip();
+  refreshTimeline();
+});
+</script>
+</body>
+</html>
