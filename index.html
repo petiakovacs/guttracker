@@ -175,7 +175,7 @@ body {
 }
 .add-header h2 { font-size: 18px; font-weight: 700; }
 .add-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text2); padding: 4px; }
-.add-body { flex: 1; overflow-y: auto; padding: 16px; }
+.add-body { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 16px; }
 
 /* Category selector */
 .cat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
@@ -196,6 +196,7 @@ body {
   background: var(--card); font-family: inherit; transition: border-color 0.2s;
 }
 .form-input:focus, .form-textarea:focus { outline: none; border-color: var(--green-500); }
+input[type="time"].form-input, input[type="date"].form-input { max-width: 100%; width: 100%; -webkit-appearance: none; }
 .form-textarea { resize: vertical; min-height: 60px; }
 
 /* Photo capture */
@@ -292,6 +293,16 @@ body {
 .settings-item .si-icon { font-size: 20px; }
 .settings-item .si-text { font-size: 14px; font-weight: 500; }
 .settings-item .si-arrow { color: var(--text3); font-size: 18px; }
+.tag-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 10px; border-radius: 20px; font-size: 13px;
+  background: var(--green-50); border: 1px solid var(--green-200); color: var(--text);
+}
+.tag-chip .tag-remove {
+  background: none; border: none; cursor: pointer; font-size: 14px; color: var(--red);
+  padding: 0 0 0 2px; line-height: 1; opacity: 0.7;
+}
+.tag-chip .tag-remove:hover { opacity: 1; }
 
 /* ========== OVERLAY ========== */
 .overlay {
@@ -471,6 +482,26 @@ body {
           <span class="si-arrow">›</span>
         </div>
         <input type="file" id="import-input" accept=".json" style="display:none" onchange="handleImport(event)">
+
+        <div class="section-title" style="margin-top: 24px;">Egyéni címkék</div>
+
+        <div class="settings-item" style="flex-direction:column;align-items:stretch;gap:10px;cursor:default;">
+          <div class="si-left"><span class="si-icon">🥤</span><span class="si-text">Ital típusok</span></div>
+          <div class="drink-cats" id="settings-drink-cats" style="margin-top:4px;"></div>
+          <div style="display:flex;gap:8px;">
+            <input type="text" class="form-input" id="new-drink-cat" placeholder="pl. 🍷 Bor" style="flex:1;padding:8px 12px;font-size:14px;">
+            <button class="submit-btn" onclick="addCustomDrinkCat()" style="padding:8px 16px;font-size:14px;flex-shrink:0;">Hozzáadás</button>
+          </div>
+        </div>
+
+        <div class="settings-item" style="flex-direction:column;align-items:stretch;gap:10px;cursor:default;margin-top:8px;">
+          <div class="si-left"><span class="si-icon">🍽️</span><span class="si-text">Étkezés címkék</span></div>
+          <div class="drink-cats" id="settings-meal-tags" style="margin-top:4px;"></div>
+          <div style="display:flex;gap:8px;">
+            <input type="text" class="form-input" id="new-meal-tag" placeholder="pl. 🥗 Saláta" style="flex:1;padding:8px 12px;font-size:14px;">
+            <button class="submit-btn" onclick="addCustomMealTag()" style="padding:8px 16px;font-size:14px;flex-shrink:0;">Hozzáadás</button>
+          </div>
+        </div>
 
         <div class="section-title" style="margin-top: 24px;">Információ</div>
         <div class="settings-item">
@@ -690,7 +721,27 @@ const BRISTOL_DESC = [
 ];
 const BRISTOL_ICONS = ['', '⚫', '🔗', '🌽', '🌭', '☁️', '💧', '🌊'];
 const WELLBEING_FACES = ['😫', '😕', '😐', '🙂', '😊'];
-const DRINK_CATS = ['💧 Víz', '☕ Kávé', '🍵 Tea', '🥛 Tej', '🍺 Sör', '🥤 Üdítő', '🧃 Egyéb'];
+const DEFAULT_DRINK_CATS = ['💧 Víz', '☕ Kávé', '🍵 Tea', '🥛 Tej', '🍺 Sör', '🥤 Üdítő', '🧃 Egyéb'];
+const DEFAULT_MEAL_TAGS = ['🌅 Reggeli', '☀️ Ebéd', '🌙 Vacsora', '🍪 Nasi'];
+
+function getDrinkCats() {
+  try {
+    const saved = localStorage.getItem('gt_drink_cats');
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return [...DEFAULT_DRINK_CATS];
+}
+
+function getMealTags() {
+  try {
+    const saved = localStorage.getItem('gt_meal_tags');
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return [...DEFAULT_MEAL_TAGS];
+}
+
+function saveDrinkCats(cats) { localStorage.setItem('gt_drink_cats', JSON.stringify(cats)); }
+function saveMealTags(tags) { localStorage.setItem('gt_meal_tags', JSON.stringify(tags)); }
 
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -709,6 +760,7 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     document.getElementById('screen-' + screen).classList.add('active');
     document.getElementById('fab-btn').style.display = screen === 'settings' ? 'none' : 'flex';
     if (screen === 'dashboard') refreshDashboard();
+    if (screen === 'settings') renderSettingsCategories();
   });
 });
 
@@ -870,7 +922,7 @@ function buildEditForm(e) {
       <div class="form-group">
         <label class="form-label">Címke</label>
         <div class="drink-cats" id="edit-meal-tags">
-          ${['🌅 Reggeli','☀️ Ebéd','🌙 Vacsora','🍪 Nasi'].map(t =>
+          ${getMealTags().map(t =>
             `<button class="drink-cat${(e.tags || []).includes(t) ? ' active' : ''}" onclick="toggleTag(this)">${t}</button>`
           ).join('')}
         </div>
@@ -1194,10 +1246,7 @@ async function mealForm() {
     <div class="form-group">
       <label class="form-label">Címke</label>
       <div class="drink-cats" id="meal-tags">
-        <button class="drink-cat" onclick="toggleTag(this)">🌅 Reggeli</button>
-        <button class="drink-cat" onclick="toggleTag(this)">☀️ Ebéd</button>
-        <button class="drink-cat" onclick="toggleTag(this)">🌙 Vacsora</button>
-        <button class="drink-cat" onclick="toggleTag(this)">🍪 Nasi</button>
+        ${getMealTags().map(t => `<button class="drink-cat" onclick="toggleTag(this)">${t}</button>`).join('')}
       </div>
     </div>
     <div class="form-group">
@@ -1233,7 +1282,7 @@ async function drinkForm() {
     <div class="form-group">
       <label class="form-label">Típus</label>
       <div class="drink-cats" id="drink-type">
-        ${DRINK_CATS.map(c => `<button class="drink-cat" onclick="selectDrinkCat(this)">${c}</button>`).join('')}
+        ${getDrinkCats().map(c => `<button class="drink-cat" onclick="selectDrinkCat(this)">${c}</button>`).join('')}
       </div>
     </div>
     <div class="form-group">
@@ -1679,6 +1728,66 @@ function showExportConfirm() {
   if (confirm('Exportálod az összes adatot JSON formátumban?')) exportData();
 }
 
+// ========== CUSTOM CATEGORIES MANAGEMENT ==========
+function renderSettingsCategories() {
+  const drinkEl = document.getElementById('settings-drink-cats');
+  const mealEl = document.getElementById('settings-meal-tags');
+  if (!drinkEl || !mealEl) return;
+
+  drinkEl.innerHTML = getDrinkCats().map((c, i) =>
+    `<span class="tag-chip">${c}<button class="tag-remove" onclick="removeCustomDrinkCat(${i})">✕</button></span>`
+  ).join('');
+
+  mealEl.innerHTML = getMealTags().map((t, i) =>
+    `<span class="tag-chip">${t}<button class="tag-remove" onclick="removeCustomMealTag(${i})">✕</button></span>`
+  ).join('');
+}
+
+function addCustomDrinkCat() {
+  const input = document.getElementById('new-drink-cat');
+  const val = input.value.trim();
+  if (!val) return;
+  const cats = getDrinkCats();
+  if (cats.includes(val)) { showToast('Már létezik!'); return; }
+  cats.push(val);
+  saveDrinkCats(cats);
+  input.value = '';
+  renderSettingsCategories();
+  showToast('🥤 Ital típus hozzáadva!');
+}
+
+function removeCustomDrinkCat(index) {
+  const cats = getDrinkCats();
+  if (cats.length <= 1) { showToast('Legalább egy típus kell!'); return; }
+  cats.splice(index, 1);
+  saveDrinkCats(cats);
+  renderSettingsCategories();
+  showToast('Törölve');
+}
+
+function addCustomMealTag() {
+  const input = document.getElementById('new-meal-tag');
+  const val = input.value.trim();
+  if (!val) return;
+  const tags = getMealTags();
+  if (tags.includes(val)) { showToast('Már létezik!'); return; }
+  tags.push(val);
+  saveMealTags(tags);
+  input.value = '';
+  renderSettingsCategories();
+  showToast('🍽️ Étkezés címke hozzáadva!');
+}
+
+function removeCustomMealTag(index) {
+  const tags = getMealTags();
+  if (tags.length <= 1) { showToast('Legalább egy címke kell!'); return; }
+  tags.splice(index, 1);
+  saveMealTags(tags);
+  renderSettingsCategories();
+  showToast('Törölve');
+}
+
+// ========== EXPORT / IMPORT ==========
 async function exportData() {
   const entries = await getAllEntries();
   const photoCount = entries.filter(e => e.photo).length;
@@ -1705,6 +1814,8 @@ async function exportData() {
     total_entries: entries.length,
     total_photos: photoCount,
     favorites: allFavs,
+    custom_drink_cats: getDrinkCats(),
+    custom_meal_tags: getMealTags(),
     days: grouped
   };
 
@@ -1747,6 +1858,8 @@ async function exportWithoutPhotos() {
     total_entries: entries.length,
     photos_excluded: true,
     favorites: allFavs,
+    custom_drink_cats: getDrinkCats(),
+    custom_meal_tags: getMealTags(),
     days: grouped
   };
 
@@ -1785,6 +1898,10 @@ async function handleImport(event) {
         try { await addFavorite(fav); favCount++; } catch (e) { /* skip duplicates */ }
       }
     }
+
+    // Import custom categories if present
+    if (data.custom_drink_cats) saveDrinkCats(data.custom_drink_cats);
+    if (data.custom_meal_tags) saveMealTags(data.custom_meal_tags);
 
     refreshTimeline();
     const msg = favCount > 0

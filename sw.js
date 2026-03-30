@@ -1,5 +1,5 @@
 // GutTracker Service Worker — cache-first with update on reload
-const CACHE_VERSION = 'gt-v1.1';
+const CACHE_VERSION = 'gt-v1.2';
 const ASSETS = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', (e) => {
