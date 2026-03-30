@@ -143,9 +143,8 @@ body {
   padding: 12px 14px; background: var(--card);
   border-radius: var(--radius); margin-bottom: 8px;
   box-shadow: 0 1px 4px var(--shadow); border: 1px solid var(--border);
-  transition: transform 0.15s;
+  cursor: pointer; user-select: none; -webkit-user-select: none;
 }
-.entry:active { transform: scale(0.98); }
 .entry-icon {
   width: 40px; height: 40px; border-radius: var(--radius-sm);
   display: flex; align-items: center; justify-content: center;
@@ -307,6 +306,37 @@ body {
 .empty-state .empty-text { font-size: 15px; color: var(--text2); }
 .empty-state .empty-sub { font-size: 13px; color: var(--text3); margin-top: 4px; }
 
+/* ========== EDIT MODAL ========== */
+.edit-modal {
+  position: fixed; inset: 0; z-index: 250;
+  display: flex; align-items: flex-end; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.edit-modal.show { opacity: 1; pointer-events: auto; }
+.edit-modal-bg { position: absolute; inset: 0; background: rgba(0,0,0,0.35); }
+.edit-modal-content {
+  position: relative; z-index: 1; width: 100%;
+  background: var(--card); border-radius: 20px 20px 0 0;
+  padding: 20px 20px calc(20px + var(--safe-bottom));
+  max-height: 85vh; overflow-y: auto;
+  transform: translateY(100%); transition: transform 0.3s ease;
+}
+.edit-modal.show .edit-modal-content { transform: translateY(0); }
+.edit-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.edit-modal-header h3 { font-size: 17px; font-weight: 700; }
+.edit-modal-close {
+  background: none; border: none; font-size: 22px; cursor: pointer;
+  color: var(--text2); padding: 4px;
+}
+.edit-modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+.edit-modal-actions button { flex: 1; padding: 14px; border-radius: var(--radius); font-size: 15px; font-weight: 700; cursor: pointer; border: none; }
+.edit-save { background: var(--green-700); color: white; }
+.edit-save:active { background: var(--green-900); }
+.edit-cancel { background: var(--bg); color: var(--text2); border: 1px solid var(--border) !important; }
+
 /* ========== TOAST ========== */
 .toast {
   position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px);
@@ -425,11 +455,11 @@ body {
       <div id="screen-settings" class="screen">
         <div class="section-title">Beállítások</div>
         <div class="settings-item" onclick="exportData()">
-          <div class="si-left"><span class="si-icon">📤</span><span class="si-text">Adatok exportálása (JSON)</span></div>
+          <div class="si-left"><span class="si-icon">📤</span><span class="si-text">Teljes export (adatok + fotók)</span></div>
           <span class="si-arrow">›</span>
         </div>
-        <div class="settings-item" onclick="exportPhotos()">
-          <div class="si-left"><span class="si-icon">🖼️</span><span class="si-text">Fotók exportálása</span></div>
+        <div class="settings-item" onclick="exportWithoutPhotos()">
+          <div class="si-left"><span class="si-icon">📋</span><span class="si-text">Könnyű export (fotók nélkül)</span></div>
           <span class="si-arrow">›</span>
         </div>
         <div class="settings-item" onclick="importData()">
@@ -499,6 +529,23 @@ body {
     <button class="smell-opt" onclick="setSmell(3)"><span class="smell-emoji">😷</span><span class="smell-label">Erős</span></button>
   </div>
   <button class="smell-skip" onclick="skipSmell()">Kihagyás</button>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="edit-modal" id="edit-modal">
+  <div class="edit-modal-bg" onclick="closeEditModal()"></div>
+  <div class="edit-modal-content">
+    <div class="edit-modal-header">
+      <h3 id="edit-modal-title">Szerkesztés</h3>
+      <button class="edit-modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div id="edit-modal-body"></div>
+    <div class="edit-modal-actions">
+      <button class="edit-cancel" onclick="closeEditModal()">Mégse</button>
+      <button class="edit-save" onclick="saveEdit()">Mentés</button>
+    </div>
+    <button style="width:100%;margin-top:12px;padding:12px;border-radius:var(--radius);border:1px solid var(--red);background:white;color:var(--red);font-size:14px;font-weight:600;cursor:pointer;" onclick="deleteFromEdit()">🗑️ Bejegyzés törlése</button>
+  </div>
 </div>
 
 <!-- TOAST -->
@@ -759,7 +806,7 @@ function renderEntry(e) {
 
   const photoHtml = e.photo ? `<img class="entry-photo" src="${e.photo}" alt="fotó">` : '';
 
-  return `<div class="entry" onclick="confirmDelete('${e.id}')">
+  return `<div class="entry" data-id="${e.id}">
     <div class="entry-icon ${iconClass}">${icon}</div>
     <div class="entry-body">
       <div class="entry-name">${name}</div>
@@ -770,11 +817,271 @@ function renderEntry(e) {
   </div>`;
 }
 
-function confirmDelete(id) {
-  if (confirm('Törlöd ezt a bejegyzést?')) {
-    deleteEntry(id).then(() => { refreshTimeline(); showToast('Törölve'); });
+// ========== LONG PRESS TO EDIT ==========
+let longPressTimer = null, longPressTriggered = false;
+
+function startLongPress(entry) {
+  longPressTriggered = false;
+  longPressTimer = setTimeout(() => {
+    longPressTriggered = true;
+    // Vibrate if available
+    if (navigator.vibrate) navigator.vibrate(30);
+    const id = entry.dataset.id;
+    if (id) openEditModal(id);
+  }, 500); // 500ms = long press
+}
+
+function cancelLongPress() {
+  if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+}
+
+// ========== EDIT MODAL ==========
+let editingEntryId = null;
+
+async function openEditModal(id) {
+  const tx = db.transaction('entries', 'readonly');
+  const req = tx.objectStore('entries').get(id);
+  req.onsuccess = () => {
+    const entry = req.result;
+    if (!entry) return;
+    editingEntryId = id;
+
+    const titles = { meal: '🍽️ Étkezés szerkesztése', drink: '🥤 Ital szerkesztése', symptom: '🤢 Tünetek szerkesztése', stool: '🚽 Széklet szerkesztése', wellbeing: '😊 Közérzet szerkesztése', gas: '💨 Gázosság szerkesztése' };
+    document.getElementById('edit-modal-title').textContent = titles[entry.type] || 'Szerkesztés';
+
+    const body = document.getElementById('edit-modal-body');
+    body.innerHTML = buildEditForm(entry);
+    document.getElementById('edit-modal').classList.add('show');
+  };
+}
+
+function buildEditForm(e) {
+  let html = `<div class="form-group">
+    <label class="form-label">Időpont</label>
+    <input type="time" class="form-input" id="edit-time" value="${e.time}">
+  </div>`;
+
+  switch (e.type) {
+    case 'meal':
+      html += `<div class="form-group">
+        <label class="form-label">Leírás</label>
+        <textarea class="form-textarea" id="edit-meal-desc">${e.description || ''}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Címke</label>
+        <div class="drink-cats" id="edit-meal-tags">
+          ${['🌅 Reggeli','☀️ Ebéd','🌙 Vacsora','🍪 Nasi'].map(t =>
+            `<button class="drink-cat${(e.tags || []).includes(t) ? ' active' : ''}" onclick="toggleTag(this)">${t}</button>`
+          ).join('')}
+        </div>
+      </div>`;
+      if (e.photo) {
+        html += `<div class="form-group">
+          <label class="form-label">Fotó</label>
+          <img src="${e.photo}" style="width:100%;border-radius:var(--radius-sm);max-height:200px;object-fit:cover;">
+        </div>`;
+      }
+      break;
+
+    case 'drink':
+      html += `<div class="form-group">
+        <label class="form-label">Név</label>
+        <input type="text" class="form-input" id="edit-drink-name" value="${e.name || ''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mennyiség (ml)</label>
+        <input type="number" class="form-input" id="edit-drink-ml" value="${e.amount_ml || ''}">
+      </div>`;
+      break;
+
+    case 'symptom':
+      html += `<div class="form-group">
+        <label class="form-label">Puffadás</label>
+        <div class="scale-row" id="edit-sym-bloat">
+          ${[1,2,3,4,5].map(n => `<button class="scale-btn${e.bloating === n ? ' active' : ''}" onclick="selectScale(this, 'edit-sym-bloat')">${n}</button>`).join('')}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Gázosság</label>
+        <div class="scale-row" id="edit-sym-gas">
+          ${[1,2,3,4,5].map(n => `<button class="scale-btn${e.gas_intensity === n ? ' active' : ''}" onclick="selectScale(this, 'edit-sym-gas')">${n}</button>`).join('')}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Hasi fájdalom</label>
+        <div class="scale-row" id="edit-sym-pain">
+          ${[1,2,3,4,5].map(n => `<button class="scale-btn${e.pain === n ? ' active' : ''}" onclick="selectScale(this, 'edit-sym-pain')">${n}</button>`).join('')}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Megjegyzés</label>
+        <textarea class="form-textarea" id="edit-sym-notes">${e.notes || ''}</textarea>
+      </div>`;
+      break;
+
+    case 'stool':
+      html += `<div class="form-group">
+        <label class="form-label">Bristol típus</label>
+        <div class="bristol-grid">
+          ${[1,2,3,4].map(n => `<button class="bristol-btn${e.bristol_type === n ? ' active' : ''}" onclick="selectBristolEdit(this, ${n})">
+            <span class="bristol-icon">${BRISTOL_ICONS[n]}</span>
+            <span class="bristol-num">Típus ${n}</span>
+          </button>`).join('')}
+        </div>
+        <div class="bristol-grid" style="margin-top:8px;">
+          ${[5,6,7].map(n => `<button class="bristol-btn${e.bristol_type === n ? ' active' : ''}" onclick="selectBristolEdit(this, ${n})">
+            <span class="bristol-icon">${BRISTOL_ICONS[n]}</span>
+            <span class="bristol-num">Típus ${n}</span>
+          </button>`).join('')}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Megjegyzés</label>
+        <input type="text" class="form-input" id="edit-stool-notes" value="${e.notes || ''}">
+      </div>`;
+      editBristolValue = e.bristol_type;
+      break;
+
+    case 'wellbeing':
+      html += `<div class="form-group">
+        <label class="form-label">Közérzet</label>
+        <div class="face-row" id="edit-wb-faces">
+          ${WELLBEING_FACES.map((f, i) => `<button class="face-btn${e.score === i+1 ? ' active' : ''}" onclick="selectFaceEdit(this, ${i+1})">${f}</button>`).join('')}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Megjegyzés</label>
+        <textarea class="form-textarea" id="edit-wb-notes">${e.notes || ''}</textarea>
+      </div>`;
+      editWellbeingValue = e.score;
+      break;
+
+    case 'gas':
+      html += `<div class="form-group">
+        <label class="form-label">Büdösségmérce</label>
+        <div class="smell-options" style="position:static;">
+          ${[{v:1,e:'😇',l:'Semleges'},{v:2,e:'😐',l:'Közepes'},{v:3,e:'😷',l:'Erős'}].map(s =>
+            `<button class="smell-opt${e.smell === s.v ? ' selected' : ''}" onclick="selectSmellEdit(this, ${s.v})"><span class="smell-emoji">${s.e}</span><span class="smell-label">${s.l}</span></button>`
+          ).join('')}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Megjegyzés</label>
+        <input type="text" class="form-input" id="edit-gas-notes" value="${e.notes || ''}">
+      </div>`;
+      editSmellValue = e.smell;
+      break;
+  }
+
+  return html;
+}
+
+let editBristolValue = null, editWellbeingValue = null, editSmellValue = null;
+
+function selectBristolEdit(btn, val) {
+  document.querySelectorAll('#edit-modal-body .bristol-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  editBristolValue = val;
+}
+function selectFaceEdit(btn, val) {
+  document.querySelectorAll('#edit-wb-faces .face-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  editWellbeingValue = val;
+}
+function selectSmellEdit(btn, val) {
+  document.querySelectorAll('#edit-modal-body .smell-opt').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  editSmellValue = val;
+}
+
+async function saveEdit() {
+  if (!editingEntryId) return;
+  const tx = db.transaction('entries', 'readwrite');
+  const store = tx.objectStore('entries');
+  const req = store.get(editingEntryId);
+  req.onsuccess = () => {
+    const entry = req.result;
+    if (!entry) return;
+
+    // Update time
+    entry.time = document.getElementById('edit-time').value;
+
+    // Update type-specific fields
+    switch (entry.type) {
+      case 'meal':
+        entry.description = document.getElementById('edit-meal-desc').value;
+        entry.tags = Array.from(document.querySelectorAll('#edit-meal-tags .drink-cat.active')).map(b => b.textContent.trim());
+        break;
+      case 'drink':
+        entry.name = document.getElementById('edit-drink-name').value;
+        entry.amount_ml = parseInt(document.getElementById('edit-drink-ml').value) || 0;
+        break;
+      case 'symptom':
+        entry.bloating = getScaleValue('edit-sym-bloat');
+        entry.gas_intensity = getScaleValue('edit-sym-gas');
+        entry.pain = getScaleValue('edit-sym-pain');
+        entry.notes = document.getElementById('edit-sym-notes').value;
+        break;
+      case 'stool':
+        entry.bristol_type = editBristolValue;
+        entry.notes = document.getElementById('edit-stool-notes').value;
+        break;
+      case 'wellbeing':
+        entry.score = editWellbeingValue;
+        entry.notes = document.getElementById('edit-wb-notes').value;
+        break;
+      case 'gas':
+        entry.smell = editSmellValue;
+        entry.notes = document.getElementById('edit-gas-notes')?.value || '';
+        break;
+    }
+
+    store.put(entry);
+  };
+  tx.oncomplete = () => {
+    closeEditModal();
+    refreshTimeline();
+    showToast('✏️ Módosítva!');
+  };
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.remove('show');
+  editingEntryId = null;
+}
+
+function deleteFromEdit() {
+  if (!editingEntryId) return;
+  if (confirm('Biztosan törlöd ezt a bejegyzést?')) {
+    deleteEntry(editingEntryId).then(() => {
+      closeEditModal();
+      refreshTimeline();
+      showToast('🗑️ Törölve');
+    });
   }
 }
+
+// ========== TOUCH & MOUSE: LONG PRESS TO EDIT ==========
+// Touch events
+document.addEventListener('touchstart', (e) => {
+  const entry = e.target.closest('.entry[data-id]');
+  if (!entry) return;
+  startLongPress(entry);
+}, { passive: true });
+
+document.addEventListener('touchmove', () => { cancelLongPress(); }, { passive: true });
+document.addEventListener('touchend', () => { cancelLongPress(); });
+
+// Mouse events (desktop)
+document.addEventListener('mousedown', (e) => {
+  const entry = e.target.closest('.entry[data-id]');
+  if (!entry) return;
+  startLongPress(entry);
+});
+document.addEventListener('mouseup', cancelLongPress);
+document.addEventListener('mousemove', (e) => {
+  if (longPressTimer && (Math.abs(e.movementX) > 3 || Math.abs(e.movementY) > 3)) cancelLongPress();
+});
 
 // ========== GAS COUNTER ==========
 function recordGas() {
@@ -1374,20 +1681,12 @@ function showExportConfirm() {
 
 async function exportData() {
   const entries = await getAllEntries();
+  const photoCount = entries.filter(e => e.photo).length;
 
-  // Separate photos from data for cleaner export
-  const exportEntries = entries.map(e => {
-    const copy = { ...e };
-    if (copy.photo) {
-      copy.has_photo = true;
-      delete copy.photo; // Photos exported separately
-    }
-    return copy;
-  });
-
+  // Keep photos inline as base64 — everything in one file
   // Group by date
   const grouped = {};
-  exportEntries.forEach(e => {
+  entries.forEach(e => {
     if (!grouped[e.date]) grouped[e.date] = [];
     grouped[e.date].push(e);
   });
@@ -1404,6 +1703,49 @@ async function exportData() {
     app: 'GutTracker', version: '1.0',
     exported_at: new Date().toISOString(),
     total_entries: entries.length,
+    total_photos: photoCount,
+    favorites: allFavs,
+    days: grouped
+  };
+
+  const jsonStr = JSON.stringify(exportObj, null, 2);
+  const sizeMB = (new Blob([jsonStr]).size / 1024 / 1024).toFixed(1);
+
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `guttracker_export_${todayStr()}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast(`📤 Export kész! (${entries.length} bejegyzés, ${photoCount} fotó, ${sizeMB} MB)`);
+}
+
+async function exportWithoutPhotos() {
+  const entries = await getAllEntries();
+
+  const stripped = entries.map(e => {
+    const copy = { ...e };
+    if (copy.photo) { copy.has_photo = true; delete copy.photo; }
+    return copy;
+  });
+
+  const grouped = {};
+  stripped.forEach(e => {
+    if (!grouped[e.date]) grouped[e.date] = [];
+    grouped[e.date].push(e);
+  });
+
+  const allFavs = await new Promise((resolve) => {
+    const tx = db.transaction('favorites', 'readonly');
+    const req = tx.objectStore('favorites').getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve([]);
+  });
+
+  const exportObj = {
+    app: 'GutTracker', version: '1.0',
+    exported_at: new Date().toISOString(),
+    total_entries: entries.length,
+    photos_excluded: true,
     favorites: allFavs,
     days: grouped
   };
@@ -1411,25 +1753,9 @@ async function exportData() {
   const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `guttracker_export_${todayStr()}.json`;
+  a.href = url; a.download = `guttracker_light_${todayStr()}.json`;
   a.click(); URL.revokeObjectURL(url);
-  showToast('📤 Export kész!');
-}
-
-async function exportPhotos() {
-  const entries = await getAllEntries();
-  const withPhotos = entries.filter(e => e.photo);
-  if (withPhotos.length === 0) { showToast('Nincsenek fotók'); return; }
-
-  // Export photos as individual files
-  for (const e of withPhotos) {
-    const a = document.createElement('a');
-    a.href = e.photo;
-    a.download = `${e.date}_${e.time.replace(':', '')}.jpg`;
-    a.click();
-    await new Promise(r => setTimeout(r, 300));
-  }
-  showToast(`🖼️ ${withPhotos.length} fotó exportálva!`);
+  showToast('📤 Export kész (fotók nélkül)!');
 }
 
 function importData() {
@@ -1442,7 +1768,9 @@ async function handleImport(event) {
   try {
     const text = await file.text();
     const data = JSON.parse(text);
-    let count = 0;
+    let count = 0, favCount = 0;
+
+    // Import entries (with photos if present)
     if (data.days) {
       for (const [date, entries] of Object.entries(data.days)) {
         for (const entry of entries) {
@@ -1450,8 +1778,19 @@ async function handleImport(event) {
         }
       }
     }
+
+    // Import favorites if present
+    if (data.favorites && data.favorites.length) {
+      for (const fav of data.favorites) {
+        try { await addFavorite(fav); favCount++; } catch (e) { /* skip duplicates */ }
+      }
+    }
+
     refreshTimeline();
-    showToast(`📥 ${count} bejegyzés importálva!`);
+    const msg = favCount > 0
+      ? `📥 ${count} bejegyzés + ${favCount} kedvenc importálva!`
+      : `📥 ${count} bejegyzés importálva!`;
+    showToast(msg);
   } catch (e) {
     showToast('Hiba az importálás során');
   }
